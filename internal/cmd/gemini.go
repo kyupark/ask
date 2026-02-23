@@ -1,0 +1,170 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/qm4/webai-cli/internal/config"
+	"github.com/qm4/webai-cli/internal/provider"
+	geminipkg "github.com/qm4/webai-cli/internal/provider/gemini"
+)
+
+var (
+	geminiModel        string
+	geminiResume       bool
+	geminiConversation string
+)
+
+var geminiCmd = &cobra.Command{
+	Use:   "gemini",
+	Short: "Google Gemini commands",
+	Long: `Interact with Google Gemini using browser cookies.
+  ask            Ask a question (saves to history)
+  ask-incognito  Ask a question (no history)
+  list           List recent conversations
+  models         Show available models`,
+}
+
+var geminiAskStandardCmd = &cobra.Command{
+	Use:   "ask [question]",
+	Short: "Ask Gemini (saves to history)",
+	Args:  cobra.MinimumNArgs(1),
+	RunE:  func(cmd *cobra.Command, args []string) error { return runGeminiAsk(cmd, args, false) },
+}
+
+var geminiAskIncognitoCmd = &cobra.Command{
+	Use:   "ask-incognito [question]",
+	Short: "Ask Gemini (no history)",
+	Args:  cobra.MinimumNArgs(1),
+	RunE:  func(cmd *cobra.Command, args []string) error { return runGeminiAsk(cmd, args, true) },
+}
+
+var geminiListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List recent Gemini conversations",
+	Args:  cobra.NoArgs,
+	RunE:  runGeminiList,
+}
+
+var geminiModelsCmd = &cobra.Command{
+	Use:   "models",
+	Short: "Show available Gemini models",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		p := geminipkg.New("", providerTimeout())
+		return runModels(p)
+	},
+}
+
+func init() {
+	for _, cmd := range []*cobra.Command{geminiAskStandardCmd, geminiAskIncognitoCmd} {
+		cmd.Flags().StringVarP(&geminiModel, "model", "m", "", "Model (e.g. 'gemini-3-pro', 'gemini-3-flash', 'gemini-deep-research')")
+	}
+	geminiAskStandardCmd.Flags().BoolVarP(&geminiResume, "resume", "r", false, "Resume last conversation")
+	geminiAskStandardCmd.Flags().StringVar(&geminiConversation, "conversation", "", "Continue a specific conversation by ID")
+	geminiCmd.AddCommand(geminiAskStandardCmd)
+	geminiCmd.AddCommand(geminiAskIncognitoCmd)
+	geminiCmd.AddCommand(geminiListCmd)
+	geminiCmd.AddCommand(geminiModelsCmd)
+	rootCmd.AddCommand(geminiCmd)
+}
+
+func runGeminiAsk(cmd *cobra.Command, args []string, temporary bool) error {
+	query := strings.Join(args, " ")
+
+	model := geminiModel
+	if model == "" {
+		model = globalCfg.Gemini.Model
+	}
+
+	p := geminipkg.New(
+		globalCfg.UserAgent,
+		providerTimeout(),
+	)
+
+	p.SetCookies(map[string]string{
+		"__Secure-1PSID":   globalCfg.Gemini.PSID,
+		"__Secure-1PSIDTS": globalCfg.Gemini.PSIDTS,
+		"__Secure-1PSIDCC": globalCfg.Gemini.PSIDCC,
+	})
+
+	autoLoadCookies(cmd.Context(), p)
+
+	opts := provider.AskOptions{
+		Model:     model,
+		Verbose:   globalCfg.Verbose,
+		Temporary: temporary,
+		OnText: func(text string) {
+			fmt.Print(text)
+		},
+		OnError: func(err error) {
+			if globalCfg.Verbose {
+				fmt.Fprintf(os.Stderr, "[gemini] error: %v\n", err)
+			}
+		},
+	}
+
+	if !temporary {
+		if geminiConversation != "" {
+			opts.ConversationID = geminiConversation
+		} else if geminiResume {
+			state := config.LoadState()
+			if conv := state.GetConversation("gemini"); conv != nil {
+				opts.ConversationID = conv.ConversationID
+				opts.ResponseID = conv.ResponseID
+			} else {
+				fmt.Fprintln(os.Stderr, "No previous conversation found for gemini — starting new")
+			}
+		}
+	}
+
+	// Save conversation state and capture ID for hint.
+	var lastConvID string
+	if !temporary {
+		opts.OnConversation = func(convID, parentMsgID, respID string) {
+			lastConvID = convID
+			state := config.LoadState()
+			state.SetConversation("gemini", &config.ConversationState{
+				ConversationID: convID,
+				ResponseID:     respID,
+			})
+			_ = config.SaveState(state)
+		}
+	}
+	if globalCfg.Verbose {
+		opts.LogFunc = func(format string, args ...any) {
+			fmt.Fprintf(os.Stderr, format+"\n", args...)
+		}
+	}
+
+	if err := p.Ask(cmd.Context(), query, opts); err != nil {
+		return err
+	}
+
+	fmt.Println()
+
+	if lastConvID != "" && !temporary {
+		fmt.Fprintf(os.Stderr, "\nConversation: %s\n", lastConvID)
+		fmt.Fprintf(os.Stderr, "  webai-cli gemini ask -c %s \"follow up\"\n", lastConvID)
+	}
+
+	return nil
+}
+
+func runGeminiList(cmd *cobra.Command, args []string) error {
+	p := geminipkg.New(
+		globalCfg.UserAgent,
+		providerTimeout(),
+	)
+
+	p.SetCookies(map[string]string{
+		"__Secure-1PSID":   globalCfg.Gemini.PSID,
+		"__Secure-1PSIDTS": globalCfg.Gemini.PSIDTS,
+		"__Secure-1PSIDCC": globalCfg.Gemini.PSIDCC,
+	})
+
+	return runList(cmd.Context(), p, 20)
+}
