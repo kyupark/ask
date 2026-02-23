@@ -2,8 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SKILL_SRC="$ROOT_DIR/skills/webai-cli"
-SKILL_DST="$HOME/.openclaw/workspace/skills/webai-cli"
 
 if ! command -v go >/dev/null 2>&1; then
   echo "Go is required. Install it first (e.g. brew install go)."
@@ -19,9 +17,7 @@ if [[ ":$PATH:" != *":$HOME/go/bin:"* ]]; then
 fi
 
 echo "Installing OpenClaw skill..."
-mkdir -p "$HOME/.openclaw/workspace/skills"
-rm -rf "$SKILL_DST"
-cp -R "$SKILL_SRC" "$SKILL_DST"
+"$HOME/go/bin/webai-cli" install-openclaw-skill
 
 echo
 echo "Done."

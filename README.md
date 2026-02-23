@@ -40,6 +40,12 @@ webai-cli ask-all -c <id> "follow up"
 
 This repo includes an OpenClaw skill at `skills/webai-cli`.
 
+Install skill from the CLI:
+
+```bash
+webai-cli install-openclaw-skill
+```
+
 Install CLI + skill on macOS:
 
 ```bash

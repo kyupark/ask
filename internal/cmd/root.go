@@ -35,6 +35,7 @@ Usage:
   webai-cli perplexity ask "your question"
   webai-cli chatgpt ask-incognito "your question"
   webai-cli gemini list
+  webai-cli install-openclaw-skill
 Cookies are auto-extracted from Safari (preferred) or Chrome.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		globalCfg = config.Load()
