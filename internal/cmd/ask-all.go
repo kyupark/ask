@@ -216,8 +216,8 @@ func runAskAll(cmd *cobra.Command, args []string) error {
 		state.SetAskAllConversation(askAllID, bundleProviders)
 		_ = config.SaveState(state)
 		fmt.Printf("\nAsk-all conversation: %s\n", askAllID)
-		fmt.Printf("  webai-cli ask-all -c %s \"follow up\"\n", askAllID)
-		fmt.Println("  webai-cli ask-all -c <id> \"follow up\"")
+		fmt.Printf("  chatmux ask-all -c %s \"follow up\"\n", askAllID)
+		fmt.Println("  chatmux ask-all -c <id> \"follow up\"")
 	}
 
 	return nil

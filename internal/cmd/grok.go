@@ -170,7 +170,7 @@ func runGrokAsk(cmd *cobra.Command, args []string, temporary bool) error {
 
 	if lastConvID != "" && !temporary {
 		fmt.Fprintf(os.Stderr, "\nConversation: %s\n", lastConvID)
-		fmt.Fprintf(os.Stderr, "  webai-cli grok ask -c %s \"follow up\"\n", lastConvID)
+		fmt.Fprintf(os.Stderr, "  chatmux grok ask -c %s \"follow up\"\n", lastConvID)
 	}
 
 	return nil

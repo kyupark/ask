@@ -90,13 +90,12 @@ func runClaudeAsk(cmd *cobra.Command, args []string, temporary bool) error {
 
 	autoLoadCookies(cmd.Context(), p)
 
-	// Apply thinking effort (default: max).
 	effort := claudeThinkingEffort
 	if effort == "" {
 		effort = globalCfg.Claude.Effort
 	}
 	if effort == "" {
-		effort = "max"
+		effort = "medium"
 	}
 	p.SetThinkingEffort(effort)
 	model := globalCfg.Claude.Model
@@ -159,7 +158,7 @@ func runClaudeAsk(cmd *cobra.Command, args []string, temporary bool) error {
 
 	if lastConvID != "" && !temporary {
 		fmt.Fprintf(os.Stderr, "\nConversation: %s\n", lastConvID)
-		fmt.Fprintf(os.Stderr, "  webai-cli claude ask -c %s \"follow up\"\n", lastConvID)
+		fmt.Fprintf(os.Stderr, "  chatmux claude ask -c %s \"follow up\"\n", lastConvID)
 	}
 
 	return nil

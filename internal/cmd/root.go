@@ -1,4 +1,3 @@
-// Package cmd implements the cobra CLI for webai-cli.
 package cmd
 
 import (
@@ -20,9 +19,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "webai-cli",
+	Use:   "chatmux",
 	Short: "Unified CLI for AI chatbots (Perplexity, ChatGPT, Gemini, Grok, Claude)",
-	Long: `webai-cli provides a single interface to multiple AI chatbots using
+	Long: `chatmux provides a single interface to multiple AI chatbots using
 browser cookie authentication. No API keys required.
 
 Supported providers:
@@ -32,10 +31,10 @@ Supported providers:
   grok        — Grok / X.com (NDJSON streaming)
   claude      — Claude.ai / Anthropic (SSE streaming)
 Usage:
-  webai-cli perplexity ask "your question"
-  webai-cli chatgpt ask-incognito "your question"
-  webai-cli gemini list
-  webai-cli install-openclaw-skill
+  chatmux perplexity ask "your question"
+  chatmux chatgpt ask-incognito "your question"
+  chatmux gemini list
+  chatmux install-openclaw-skill
 Cookies are auto-extracted from Safari (preferred) or Chrome.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		globalCfg = config.Load()

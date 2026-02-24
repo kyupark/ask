@@ -35,7 +35,15 @@ func LoadState() *State {
 	path := StatePath()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return s
+		if !os.IsNotExist(err) {
+			return s
+		}
+
+		legacyPath := filePathForApp(legacyAppName, stateFile)
+		data, err = os.ReadFile(legacyPath)
+		if err != nil {
+			return s
+		}
 	}
 
 	_ = json.Unmarshal(data, s)
@@ -101,13 +109,5 @@ func (s *State) GetConversation(provider string) *ConversationState {
 
 // StatePath returns the path to the state file.
 func StatePath() string {
-	dir := os.Getenv("XDG_CONFIG_HOME")
-	if dir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return filepath.Join(".", appName, stateFile)
-		}
-		dir = filepath.Join(home, ".config")
-	}
-	return filepath.Join(dir, appName, stateFile)
+	return filePathForApp(appName, stateFile)
 }

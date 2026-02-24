@@ -16,7 +16,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("webai-cli %s (commit: %s, built: %s)\n", Version, Commit, Date)
+		fmt.Printf("chatmux %s (commit: %s, built: %s)\n", Version, Commit, Date)
 	},
 }
 

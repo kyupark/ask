@@ -1,4 +1,3 @@
-// Package config handles configuration for webai-cli with per-provider sections.
 package config
 
 import (
@@ -9,8 +8,9 @@ import (
 )
 
 const (
-	appName    = "webai-cli"
-	configFile = "config.json"
+	appName       = "chatmux"
+	legacyAppName = "webai-cli"
+	configFile    = "config.json"
 
 	DefaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 	DefaultTimeout   = 30
@@ -84,7 +84,15 @@ func Load() *Config {
 	path := FilePath()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return cfg
+		if !os.IsNotExist(err) {
+			return cfg
+		}
+
+		legacyPath := filePathForApp(legacyAppName, configFile)
+		data, err = os.ReadFile(legacyPath)
+		if err != nil {
+			return cfg
+		}
 	}
 
 	_ = json.Unmarshal(data, cfg)
@@ -117,13 +125,21 @@ func Save(cfg *Config) error {
 
 // FilePath returns the path to the config file.
 func FilePath() string {
+	return filePathForApp(appName, configFile)
+}
+
+func filePathForApp(app, file string) string {
+	return filepath.Join(configBaseDir(), app, file)
+}
+
+func configBaseDir() string {
 	dir := os.Getenv("XDG_CONFIG_HOME")
 	if dir == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return filepath.Join(".", appName, configFile)
+			return "."
 		}
 		dir = filepath.Join(home, ".config")
 	}
-	return filepath.Join(dir, appName, configFile)
+	return dir
 }

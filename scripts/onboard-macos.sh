@@ -8,8 +8,8 @@ if ! command -v go >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Installing webai-cli..."
-go install "$ROOT_DIR/cmd/webai-cli"
+echo "Installing chatmux..."
+go install "$ROOT_DIR/cmd/chatmux"
 
 if [[ ":$PATH:" != *":$HOME/go/bin:"* ]]; then
   echo "Note: add Go bin to PATH if needed:"
@@ -17,11 +17,11 @@ if [[ ":$PATH:" != *":$HOME/go/bin:"* ]]; then
 fi
 
 echo "Installing OpenClaw skill..."
-"$HOME/go/bin/webai-cli" install-openclaw-skill
+"$HOME/go/bin/chatmux" install-openclaw-skill
 
 echo
 echo "Done."
 echo "CLI check:"
-echo "  webai-cli --help"
+echo "  chatmux --help"
 echo "Skill check:"
-echo "  openclaw skills info webai-cli"
+echo "  openclaw skills info chatmux"
