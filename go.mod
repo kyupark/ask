@@ -1,4 +1,4 @@
-module github.com/qm4/webai-cli
+module github.com/kyupark/ask
 
 go 1.25.6
 

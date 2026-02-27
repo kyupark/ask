@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qm4/webai-cli/internal/httpclient"
-	"github.com/qm4/webai-cli/internal/provider"
+	"github.com/kyupark/ask/internal/httpclient"
+	"github.com/kyupark/ask/internal/provider"
 )
 
 const (
@@ -49,6 +49,17 @@ type conversationResponse struct {
 	UUID string `json:"uuid"`
 }
 
+type conversationMessage struct {
+	UUID string `json:"uuid"`
+}
+
+type conversationDetailResponse struct {
+	ChatMessages           []conversationMessage `json:"chat_messages"`
+	Messages               []conversationMessage `json:"messages"`
+	LatestMessageUUID      string                `json:"latest_message_uuid"`
+	CurrentLeafMessageUUID string                `json:"current_leaf_message_uuid"`
+}
+
 type completionRequest struct {
 	Prompt            string        `json:"prompt"`
 	Model             string        `json:"model,omitempty"`
@@ -62,16 +73,22 @@ type completionRequest struct {
 
 type sseEvent struct {
 	Type    string `json:"type"`
+	Index   int    `json:"index"`
 	Message struct {
 		ID string `json:"id"`
 	} `json:"message"`
 	ContentBlock struct {
-		Type string `json:"type"`
+		Type     string `json:"type"`
+		Title    string `json:"title"`
+		Name     string `json:"name"`
+		Language string `json:"language"`
+		Text     string `json:"text"`
 	} `json:"content_block"`
 	Delta struct {
-		Type     string `json:"type"`
-		Text     string `json:"text"`
-		Thinking string `json:"thinking"`
+		Type        string `json:"type"`
+		Text        string `json:"text"`
+		Thinking    string `json:"thinking"`
+		PartialJSON string `json:"partial_json"`
 	} `json:"delta"`
 	Error struct {
 		Message string `json:"message"`
@@ -162,8 +179,16 @@ func (p *Provider) Ask(ctx context.Context, query string, opts provider.AskOptio
 	}
 	logf("[claude] conversation=%s", convID)
 
-	// 3. Send message and stream response.
-	err = p.sendMessage(ctx, orgID, convID, query, model, opts)
+	sendOpts := opts
+	if convID != "" && sendOpts.ParentMessageID == "" {
+		if parentID, parentErr := p.getLatestParentMessageID(ctx, orgID, convID, logf); parentErr == nil {
+			sendOpts.ParentMessageID = parentID
+		} else {
+			logf("[claude] warning: could not resolve parent message UUID: %v", parentErr)
+		}
+	}
+
+	err = p.sendMessage(ctx, orgID, convID, query, model, sendOpts)
 
 	// 4. Delete conversation if temporary mode.
 	if opts.Temporary && opts.ConversationID == "" {
@@ -340,6 +365,53 @@ func (p *Provider) createConversation(ctx context.Context, orgID, model string, 
 	return conv.UUID, nil
 }
 
+func (p *Provider) getLatestParentMessageID(ctx context.Context, orgID, convID string, logf func(string, ...any)) (string, error) {
+	url := fmt.Sprintf(p.baseURL+conversationPath+"/%s", orgID, convID)
+	logf("[claude] GET %s", url)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	p.setHeaders(req, fmt.Sprintf("%s/chat/%s", p.baseURL, convID))
+
+	client := httpclient.New(p.timeout)
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	var detail conversationDetailResponse
+	if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+		return "", fmt.Errorf("decoding conversation detail: %w", err)
+	}
+
+	if detail.CurrentLeafMessageUUID != "" {
+		return detail.CurrentLeafMessageUUID, nil
+	}
+	if detail.LatestMessageUUID != "" {
+		return detail.LatestMessageUUID, nil
+	}
+	for i := len(detail.ChatMessages) - 1; i >= 0; i-- {
+		if detail.ChatMessages[i].UUID != "" {
+			return detail.ChatMessages[i].UUID, nil
+		}
+	}
+	for i := len(detail.Messages) - 1; i >= 0; i-- {
+		if detail.Messages[i].UUID != "" {
+			return detail.Messages[i].UUID, nil
+		}
+	}
+
+	return "", nil
+}
+
 func (p *Provider) sendMessage(ctx context.Context, orgID, convID, query, model string, opts provider.AskOptions) error {
 	logf := opts.LogFunc
 	if logf == nil {
@@ -380,7 +452,7 @@ func (p *Provider) sendMessage(ctx context.Context, orgID, convID, query, model 
 	req.Header.Set("Accept", "text/event-stream, text/event-stream")
 	req.Header.Set("Cache-Control", "no-cache")
 
-	client := httpclient.New(5 * time.Minute)
+	client := httpclient.New(p.timeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
@@ -437,6 +509,7 @@ func (p *Provider) readStream(r io.Reader, convID string, opts provider.AskOptio
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	lastMsgID := ""
+	artifactAnnounced := map[int]bool{}
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -470,6 +543,27 @@ func (p *Provider) readStream(r io.Reader, convID string, opts provider.AskOptio
 		if event.Delta.Type == "text_delta" && event.Delta.Text != "" {
 			if opts.OnText != nil {
 				opts.OnText(event.Delta.Text)
+			}
+		}
+		if event.ContentBlock.Type == "artifact" {
+			if !artifactAnnounced[event.Index] {
+				artifactAnnounced[event.Index] = true
+				label := event.ContentBlock.Title
+				if label == "" {
+					label = event.ContentBlock.Name
+				}
+				if label == "" {
+					label = "artifact"
+				}
+				if opts.OnText != nil {
+					opts.OnText("\n\n[artifact: " + label + "]\n")
+				}
+			}
+			if event.ContentBlock.Text != "" && opts.OnText != nil {
+				opts.OnText(event.ContentBlock.Text)
+			}
+			if event.Delta.PartialJSON != "" && opts.OnText != nil {
+				opts.OnText(event.Delta.PartialJSON)
 			}
 		}
 		if event.Type == "message_start" && event.Message.ID != "" {

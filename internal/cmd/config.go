@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	cfgpkg "github.com/qm4/webai-cli/internal/config"
+	cfgpkg "github.com/kyupark/ask/internal/config"
 )
 
 var configCmd = &cobra.Command{

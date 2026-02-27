@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/qm4/webai-cli/internal/provider"
+	"github.com/kyupark/ask/internal/provider"
 	"io"
 	"net/http"
 	"net/url"
@@ -38,22 +38,27 @@ var fallbackQueryIDs = map[string][]string{
 // --- model aliases ---
 
 var modelAliases = map[string]string{
-	"auto":         "grok-4-auto",
-	"fast":         "grok-4-fast-non-reasoning",
-	"expert":       "grok-4",
-	"heavy":        "grok-4",
-	"thinking":     "grok-4.1-fast-reasoning",
-	"4":            "grok-4-auto",
-	"3":            "grok-3",
-	"2":            "grok-2a",
-	"mini":         "grok-3-mini",
-	"grok-4-heavy": "grok-4",
+	"auto":           "grok-4-auto",
+	"fast":           "grok-4-fast-non-reasoning",
+	"expert":         "grok-4",
+	"heavy":          "grok-4",
+	"thinking":       "grok-4.1-fast-reasoning",
+	"4.20":           "grok-420",
+	"420":            "grok-420",
+	"4":              "grok-4-auto",
+	"3":              "grok-3",
+	"2":              "grok-2a",
+	"mini":           "grok-3-mini",
+	"grok-4-heavy":   "grok-4",
+	"grok-4.20":      "grok-420",
+	"grok-4.20-beta": "grok-420",
+	"grok-420":       "grok-420",
 }
 
 // ResolveModel maps a user-friendly alias to the full model ID.
 func ResolveModel(input string) string {
 	if input == "" {
-		return "grok-4-auto"
+		return "grok-420"
 	}
 	lower := strings.ToLower(input)
 	if alias, ok := modelAliases[lower]; ok {
@@ -719,9 +724,10 @@ func (p *Provider) ListModels() provider.ProviderModels {
 	return provider.ProviderModels{
 		Provider: "grok",
 		Models: []provider.ModelInfo{
-			{ID: "grok-4-auto", Name: "Grok 4 Auto", Description: "Auto-select model", Default: true, Tags: []string{"auto"}},
+			{ID: "grok-4-auto", Name: "Grok 4 Auto", Description: "Auto-select model", Default: false, Tags: []string{"auto"}},
 			{ID: "grok-4-fast-non-reasoning", Name: "Grok 4 Fast", Description: "Fast, no reasoning", Default: false, Tags: []string{"fast"}},
 			{ID: "grok-4", Name: "Grok 4 Expert", Description: "Expert model", Default: false, Tags: []string{"flagship"}},
+			{ID: "grok-420", Name: "Grok 4.20 Beta", Description: "Early-access Grok 4.20 model", Default: true, Tags: []string{"beta", "reasoning"}},
 			{ID: "grok-4.1-fast-reasoning", Name: "Grok 4.1 Thinking", Description: "Fast reasoning model", Default: false, Tags: []string{"reasoning"}},
 			{ID: "grok-3", Name: "Grok 3", Description: "Previous generation model", Default: false, Tags: []string{"legacy"}},
 			{ID: "grok-3-mini", Name: "Grok 3 Mini", Description: "Lightweight model", Default: false, Tags: []string{"fast", "legacy"}},

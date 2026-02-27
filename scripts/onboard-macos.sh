@@ -8,8 +8,8 @@ if ! command -v go >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Installing chatmux..."
-go install "$ROOT_DIR/cmd/chatmux"
+echo "Installing ask..."
+go install "$ROOT_DIR/cmd/ask"
 
 if [[ ":$PATH:" != *":$HOME/go/bin:"* ]]; then
   echo "Note: add Go bin to PATH if needed:"
@@ -17,11 +17,11 @@ if [[ ":$PATH:" != *":$HOME/go/bin:"* ]]; then
 fi
 
 echo "Installing OpenClaw skill..."
-"$HOME/go/bin/chatmux" install-openclaw-skill
+"$HOME/go/bin/ask" install-openclaw-skill
 
 echo
 echo "Done."
 echo "CLI check:"
-echo "  chatmux --help"
+echo "  ask --help"
 echo "Skill check:"
-echo "  openclaw skills info chatmux"
+echo "  openclaw skills info ask"

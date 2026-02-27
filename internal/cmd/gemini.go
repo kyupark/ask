@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qm4/webai-cli/internal/config"
-	"github.com/qm4/webai-cli/internal/provider"
-	geminipkg "github.com/qm4/webai-cli/internal/provider/gemini"
+	"github.com/kyupark/ask/internal/config"
+	"github.com/kyupark/ask/internal/provider"
+	geminipkg "github.com/kyupark/ask/internal/provider/gemini"
 )
 
 var (
@@ -19,20 +19,20 @@ var (
 )
 
 var geminiCmd = &cobra.Command{
-	Use:   "gemini",
+	Use:   "gemini [question]",
 	Short: "Google Gemini commands",
 	Long: `Interact with Google Gemini using browser cookies.
-  ask            Ask a question (saves to history)
+  <question>      Ask a question (saves to history)
   ask-incognito  Ask a question (no history)
   list           List recent conversations
-  models         Show available models`,
-}
-
-var geminiAskStandardCmd = &cobra.Command{
-	Use:   "ask [question]",
-	Short: "Ask Gemini (saves to history)",
-	Args:  cobra.MinimumNArgs(1),
-	RunE:  func(cmd *cobra.Command, args []string) error { return runGeminiAsk(cmd, args, false) },
+	models         Show available models`,
+	Args: cobra.ArbitraryArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
+		return runGeminiAsk(cmd, args, false)
+	},
 }
 
 var geminiAskIncognitoCmd = &cobra.Command{
@@ -60,12 +60,10 @@ var geminiModelsCmd = &cobra.Command{
 }
 
 func init() {
-	for _, cmd := range []*cobra.Command{geminiAskStandardCmd, geminiAskIncognitoCmd} {
-		cmd.Flags().StringVarP(&geminiModel, "model", "m", "", "Model (e.g. 'gemini-3-pro', 'gemini-3-flash', 'gemini-deep-research')")
-	}
-	geminiAskStandardCmd.Flags().BoolVarP(&geminiResume, "resume", "r", false, "Resume last conversation")
-	geminiAskStandardCmd.Flags().StringVar(&geminiConversation, "conversation", "", "Continue a specific conversation by ID")
-	geminiCmd.AddCommand(geminiAskStandardCmd)
+	geminiCmd.Flags().StringVarP(&geminiModel, "model", "m", "", "Model (e.g. 'gemini-3-pro', 'gemini-3-flash', 'gemini-deep-research')")
+	geminiCmd.Flags().BoolVarP(&geminiResume, "resume", "r", false, "Resume last conversation")
+	geminiCmd.Flags().StringVar(&geminiConversation, "conversation", "", "Continue a specific conversation by ID")
+	geminiAskIncognitoCmd.Flags().StringVarP(&geminiModel, "model", "m", "", "Model (e.g. 'gemini-3-pro', 'gemini-3-flash', 'gemini-deep-research')")
 	geminiCmd.AddCommand(geminiAskIncognitoCmd)
 	geminiCmd.AddCommand(geminiListCmd)
 	geminiCmd.AddCommand(geminiModelsCmd)
@@ -148,7 +146,7 @@ func runGeminiAsk(cmd *cobra.Command, args []string, temporary bool) error {
 
 	if lastConvID != "" && !temporary {
 		fmt.Fprintf(os.Stderr, "\nConversation: %s\n", lastConvID)
-		fmt.Fprintf(os.Stderr, "  chatmux gemini ask -c %s \"follow up\"\n", lastConvID)
+		fmt.Fprintf(os.Stderr, "  ask gemini -c %s \"follow up\"\n", lastConvID)
 	}
 
 	return nil

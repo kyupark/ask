@@ -2,5 +2,5 @@ package skillbundle
 
 import "embed"
 
-//go:embed chatmux/*
-var Chatmux embed.FS
+//go:embed ask/*
+var Ask embed.FS

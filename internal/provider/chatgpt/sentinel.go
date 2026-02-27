@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/qm4/webai-cli/internal/httpclient"
+	"github.com/kyupark/ask/internal/httpclient"
 	"golang.org/x/crypto/sha3"
 )
 

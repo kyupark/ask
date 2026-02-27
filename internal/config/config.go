@@ -8,12 +8,11 @@ import (
 )
 
 const (
-	appName       = "chatmux"
-	legacyAppName = "webai-cli"
-	configFile    = "config.json"
+	appName    = "ask"
+	configFile = "config.json"
 
 	DefaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-	DefaultTimeout   = 30
+	DefaultTimeout   = 180
 )
 
 // Config is the top-level configuration.
@@ -84,15 +83,7 @@ func Load() *Config {
 	path := FilePath()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return cfg
-		}
-
-		legacyPath := filePathForApp(legacyAppName, configFile)
-		data, err = os.ReadFile(legacyPath)
-		if err != nil {
-			return cfg
-		}
+		return cfg
 	}
 
 	_ = json.Unmarshal(data, cfg)

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/qm4/webai-cli/internal/provider"
+	"github.com/kyupark/ask/internal/provider"
 )
 
 // runList is a shared helper that lists conversations for any provider

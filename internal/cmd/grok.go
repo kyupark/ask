@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qm4/webai-cli/internal/config"
-	"github.com/qm4/webai-cli/internal/provider"
-	grokpkg "github.com/qm4/webai-cli/internal/provider/grok"
+	"github.com/kyupark/ask/internal/config"
+	"github.com/kyupark/ask/internal/provider"
+	grokpkg "github.com/kyupark/ask/internal/provider/grok"
 )
 
 var (
@@ -21,21 +21,21 @@ var (
 )
 
 var grokCmd = &cobra.Command{
-	Use:   "grok",
+	Use:   "grok [question]",
 	Short: "Grok (X.com) commands",
 	Long: `Interact with Grok on X.com using browser cookies.
-  ask            Ask a question (saves to history)
+  <question>      Ask a question (saves to history)
   ask-incognito  Ask a question (no local resume state)
   list           List recent conversations
   models         Show available models
-Model aliases: auto, fast, expert, thinking, 4, 3, 2, mini`,
-}
-
-var grokAskStandardCmd = &cobra.Command{
-	Use:   "ask [question]",
-	Short: "Ask Grok (saves to history)",
-	Args:  cobra.MinimumNArgs(1),
-	RunE:  func(cmd *cobra.Command, args []string) error { return runGrokAsk(cmd, args, false) },
+Model aliases: auto, fast, expert, thinking, 4.20, 4, 3, 2, mini`,
+	Args: cobra.ArbitraryArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
+		return runGrokAsk(cmd, args, false)
+	},
 }
 
 var grokAskIncognitoCmd = &cobra.Command{
@@ -63,14 +63,14 @@ var grokModelsCmd = &cobra.Command{
 }
 
 func init() {
-	for _, cmd := range []*cobra.Command{grokAskStandardCmd, grokAskIncognitoCmd} {
-		cmd.Flags().StringVarP(&grokModel, "model", "m", "", "Model override (e.g. 'auto', 'fast', 'expert', 'thinking')")
-		cmd.Flags().BoolVar(&grokDeepsearch, "deepsearch", false, "Enable DeepSearch mode")
-		cmd.Flags().BoolVar(&grokReasoning, "reasoning", false, "Enable Reasoning mode")
-	}
-	grokAskStandardCmd.Flags().BoolVarP(&grokResume, "resume", "r", false, "Resume last conversation")
-	grokAskStandardCmd.Flags().StringVar(&grokConversation, "conversation", "", "Continue a specific conversation by ID")
-	grokCmd.AddCommand(grokAskStandardCmd)
+	grokCmd.Flags().StringVarP(&grokModel, "model", "m", "", "Model override (e.g. 'auto', '4.20', 'fast', 'expert', 'thinking')")
+	grokCmd.Flags().BoolVar(&grokDeepsearch, "deepsearch", false, "Enable DeepSearch mode")
+	grokCmd.Flags().BoolVar(&grokReasoning, "reasoning", false, "Enable Reasoning mode")
+	grokCmd.Flags().BoolVarP(&grokResume, "resume", "r", false, "Resume last conversation")
+	grokCmd.Flags().StringVar(&grokConversation, "conversation", "", "Continue a specific conversation by ID")
+	grokAskIncognitoCmd.Flags().StringVarP(&grokModel, "model", "m", "", "Model override (e.g. 'auto', '4.20', 'fast', 'expert', 'thinking')")
+	grokAskIncognitoCmd.Flags().BoolVar(&grokDeepsearch, "deepsearch", false, "Enable DeepSearch mode")
+	grokAskIncognitoCmd.Flags().BoolVar(&grokReasoning, "reasoning", false, "Enable Reasoning mode")
 	grokCmd.AddCommand(grokAskIncognitoCmd)
 	grokCmd.AddCommand(grokListCmd)
 	grokCmd.AddCommand(grokModelsCmd)
@@ -170,7 +170,7 @@ func runGrokAsk(cmd *cobra.Command, args []string, temporary bool) error {
 
 	if lastConvID != "" && !temporary {
 		fmt.Fprintf(os.Stderr, "\nConversation: %s\n", lastConvID)
-		fmt.Fprintf(os.Stderr, "  chatmux grok ask -c %s \"follow up\"\n", lastConvID)
+		fmt.Fprintf(os.Stderr, "  ask grok -c %s \"follow up\"\n", lastConvID)
 	}
 
 	return nil

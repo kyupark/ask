@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qm4/webai-cli/internal/config"
-	"github.com/qm4/webai-cli/internal/cookies"
-	"github.com/qm4/webai-cli/internal/provider"
+	"github.com/kyupark/ask/internal/config"
+	"github.com/kyupark/ask/internal/cookies"
+	"github.com/kyupark/ask/internal/provider"
 )
 
 var (
@@ -19,9 +19,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "chatmux",
+	Use:   "ask",
 	Short: "Unified CLI for AI chatbots (Perplexity, ChatGPT, Gemini, Grok, Claude)",
-	Long: `chatmux provides a single interface to multiple AI chatbots using
+	Long: `ask provides a single interface to multiple AI chatbots using
 browser cookie authentication. No API keys required.
 
 Supported providers:
@@ -31,10 +31,11 @@ Supported providers:
   grok        — Grok / X.com (NDJSON streaming)
   claude      — Claude.ai / Anthropic (SSE streaming)
 Usage:
-  chatmux perplexity ask "your question"
-  chatmux chatgpt ask-incognito "your question"
-  chatmux gemini list
-  chatmux install-openclaw-skill
+  ask perplexity "your question"
+  ask chatgpt "your question"
+  ask gemini "your question"
+  ask all "compare providers"
+  ask install-openclaw-skill
 Cookies are auto-extracted from Safari (preferred) or Chrome.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		globalCfg = config.Load()
@@ -94,5 +95,9 @@ func autoLoadCookies(ctx context.Context, p provider.Provider) {
 
 // providerTimeout returns the configured timeout as time.Duration.
 func providerTimeout() time.Duration {
-	return time.Duration(globalCfg.Timeout) * time.Second
+	timeout := time.Duration(globalCfg.Timeout) * time.Second
+	if timeout < 3*time.Minute {
+		return 3 * time.Minute
+	}
+	return timeout
 }

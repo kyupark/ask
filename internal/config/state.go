@@ -35,15 +35,7 @@ func LoadState() *State {
 	path := StatePath()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return s
-		}
-
-		legacyPath := filePathForApp(legacyAppName, stateFile)
-		data, err = os.ReadFile(legacyPath)
-		if err != nil {
-			return s
-		}
+		return s
 	}
 
 	_ = json.Unmarshal(data, s)

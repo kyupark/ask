@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/qm4/webai-cli/internal/provider"
+	"github.com/kyupark/ask/internal/provider"
 )
 
 // runModels prints the model catalog for a provider implementing ModelLister.

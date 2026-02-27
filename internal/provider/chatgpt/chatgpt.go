@@ -8,14 +8,14 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"github.com/kyupark/ask/internal/httpclient"
+	"github.com/kyupark/ask/internal/provider"
 	"io"
 	"math/big"
 	"net/http"
 	"os"
 	"strings"
 	"time"
-	"github.com/qm4/webai-cli/internal/httpclient"
-	"github.com/qm4/webai-cli/internal/provider"
 )
 
 const (
@@ -60,31 +60,31 @@ type conversationMode struct {
 }
 
 type clientContextualInfo struct {
-	IsDarkMode      bool   `json:"is_dark_mode"`
-	TimeSinceLoaded int    `json:"time_since_loaded"`
-	PageHeight      int    `json:"page_height"`
-	PageWidth       int    `json:"page_width"`
-	PixelRatio      int    `json:"pixel_ratio"`
-	ScreenHeight    int    `json:"screen_height"`
-	ScreenWidth     int    `json:"screen_width"`
+	IsDarkMode      bool `json:"is_dark_mode"`
+	TimeSinceLoaded int  `json:"time_since_loaded"`
+	PageHeight      int  `json:"page_height"`
+	PageWidth       int  `json:"page_width"`
+	PixelRatio      int  `json:"pixel_ratio"`
+	ScreenHeight    int  `json:"screen_height"`
+	ScreenWidth     int  `json:"screen_width"`
 }
 type conversationRequest struct {
-	Action                              string               `json:"action"`
-	Messages                            []message            `json:"messages"`
-	ParentMessageID                     string               `json:"parent_message_id"`
-	Model                               string               `json:"model"`
-	ConversationID                      string               `json:"conversation_id,omitempty"`
-	TimezoneOffsetMin                   int                  `json:"timezone_offset_min"`
-	Timezone                            string               `json:"timezone"`
-	HistoryAndTrainingDisabled          bool                 `json:"history_and_training_disabled,omitempty"`
-	ConversationMode                    conversationMode     `json:"conversation_mode"`
-	EnableMessageFollowups              bool                 `json:"enable_message_followups"`
-	SystemHints                         []string             `json:"system_hints"`
-	ThinkingEffort                      string               `json:"thinking_effort,omitempty"`
-	SupportsBuffering                   bool                 `json:"supports_buffering,omitempty"`
-	SupportedEncodings                  []string             `json:"supported_encodings,omitempty"`
-	ClientContextualInfo                clientContextualInfo `json:"client_contextual_info"`
-	ParagenCotSummaryDisplayOverride    string               `json:"paragen_cot_summary_display_override"`
+	Action                           string               `json:"action"`
+	Messages                         []message            `json:"messages"`
+	ParentMessageID                  string               `json:"parent_message_id"`
+	Model                            string               `json:"model"`
+	ConversationID                   string               `json:"conversation_id,omitempty"`
+	TimezoneOffsetMin                int                  `json:"timezone_offset_min"`
+	Timezone                         string               `json:"timezone"`
+	HistoryAndTrainingDisabled       bool                 `json:"history_and_training_disabled,omitempty"`
+	ConversationMode                 conversationMode     `json:"conversation_mode"`
+	EnableMessageFollowups           bool                 `json:"enable_message_followups"`
+	SystemHints                      []string             `json:"system_hints"`
+	ThinkingEffort                   string               `json:"thinking_effort,omitempty"`
+	SupportsBuffering                bool                 `json:"supports_buffering,omitempty"`
+	SupportedEncodings               []string             `json:"supported_encodings,omitempty"`
+	ClientContextualInfo             clientContextualInfo `json:"client_contextual_info"`
+	ParagenCotSummaryDisplayOverride string               `json:"paragen_cot_summary_display_override"`
 }
 
 type responseMessage struct {
@@ -210,8 +210,8 @@ func (p *Provider) Ask(ctx context.Context, query string, opts provider.AskOptio
 		ConversationMode:           conversationMode{Kind: "primary_assistant"},
 		EnableMessageFollowups:     true,
 		SystemHints:                []string{},
-        // Don't send supported_encodings/supports_buffering — v1 delta encoding
-        // uses a completely different response format we don't parse yet.
+		// Don't send supported_encodings/supports_buffering — v1 delta encoding
+		// uses a completely different response format we don't parse yet.
 		ClientContextualInfo: clientContextualInfo{
 			IsDarkMode:      false,
 			TimeSinceLoaded: int(tsl.Int64()) + 20,
@@ -262,7 +262,7 @@ func (p *Provider) Ask(ctx context.Context, query string, opts provider.AskOptio
 
 	p.setCookies(req)
 
-	client := httpclient.New(5 * time.Minute)
+	client := httpclient.New(p.timeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
@@ -366,9 +366,9 @@ func (p *Provider) readStream(r io.Reader, opts provider.AskOptions) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-        if opts.Verbose {
-            fmt.Fprintf(os.Stderr, "[chatgpt-stream] line: %s\n", line)
-        }
+		if opts.Verbose {
+			fmt.Fprintf(os.Stderr, "[chatgpt-stream] line: %s\n", line)
+		}
 		if !strings.HasPrefix(line, "data: ") {
 			continue
 		}

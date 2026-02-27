@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qm4/webai-cli/internal/provider"
+	"github.com/kyupark/ask/internal/provider"
 )
 
 const (

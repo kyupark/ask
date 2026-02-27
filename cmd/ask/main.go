@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/qm4/webai-cli/internal/cmd"
+	"github.com/kyupark/ask/internal/cmd"
 )
 
 func main() {

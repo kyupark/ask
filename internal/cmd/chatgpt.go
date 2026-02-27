@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qm4/webai-cli/internal/config"
-	"github.com/qm4/webai-cli/internal/provider"
-	chatgptpkg "github.com/qm4/webai-cli/internal/provider/chatgpt"
+	"github.com/kyupark/ask/internal/config"
+	"github.com/kyupark/ask/internal/provider"
+	chatgptpkg "github.com/kyupark/ask/internal/provider/chatgpt"
 )
 
 var (
@@ -20,20 +20,20 @@ var (
 )
 
 var chatgptCmd = &cobra.Command{
-	Use:   "chatgpt",
+	Use:   "chatgpt [question]",
 	Short: "ChatGPT commands",
 	Long: `Interact with ChatGPT using browser cookies.
-  ask            Ask a question (saves to history)
+  <question>      Ask a question (saves to history)
   ask-incognito  Ask a question (no history)
   list           List recent conversations
-  models         Show available models`,
-}
-
-var chatgptAskStandardCmd = &cobra.Command{
-	Use:   "ask [question]",
-	Short: "Ask ChatGPT (saves to history)",
-	Args:  cobra.MinimumNArgs(1),
-	RunE:  func(cmd *cobra.Command, args []string) error { return runChatGPTAsk(cmd, args, false) },
+	models         Show available models`,
+	Args: cobra.ArbitraryArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
+		return runChatGPTAsk(cmd, args, false)
+	},
 }
 
 var chatgptAskIncognitoCmd = &cobra.Command{
@@ -61,13 +61,12 @@ var chatgptModelsCmd = &cobra.Command{
 }
 
 func init() {
-	chatgptAskStandardCmd.Flags().StringVarP(&chatgptModel, "model", "m", "", "Model override (e.g. 'auto', 'gpt-5.2', 'gpt-5.2-thinking')")
-	chatgptAskStandardCmd.Flags().StringVar(&chatgptEffort, "effort", "", "Thinking effort (none, low, medium, high, xhigh)")
-	chatgptAskStandardCmd.Flags().BoolVarP(&chatgptResume, "resume", "r", false, "Resume last conversation")
-	chatgptAskStandardCmd.Flags().StringVar(&chatgptConversation, "conversation", "", "Continue a specific conversation by ID")
+	chatgptCmd.Flags().StringVarP(&chatgptModel, "model", "m", "", "Model override (e.g. 'auto', 'gpt-5.2', 'gpt-5.2-thinking')")
+	chatgptCmd.Flags().StringVar(&chatgptEffort, "effort", "", "Thinking effort (none, low, medium, high, xhigh)")
+	chatgptCmd.Flags().BoolVarP(&chatgptResume, "resume", "r", false, "Resume last conversation")
+	chatgptCmd.Flags().StringVar(&chatgptConversation, "conversation", "", "Continue a specific conversation by ID")
 	chatgptAskIncognitoCmd.Flags().StringVarP(&chatgptModel, "model", "m", "", "Model override (e.g. 'auto', 'gpt-5.2', 'gpt-5.2-thinking')")
 	chatgptAskIncognitoCmd.Flags().StringVar(&chatgptEffort, "effort", "", "Thinking effort (none, low, medium, high, xhigh)")
-	chatgptCmd.AddCommand(chatgptAskStandardCmd)
 	chatgptCmd.AddCommand(chatgptAskIncognitoCmd)
 	chatgptCmd.AddCommand(chatgptListCmd)
 	chatgptCmd.AddCommand(chatgptModelsCmd)
@@ -161,7 +160,7 @@ func runChatGPTAsk(cmd *cobra.Command, args []string, temporary bool) error {
 
 	if lastConvID != "" && !temporary {
 		fmt.Fprintf(os.Stderr, "\nConversation: %s\n", lastConvID)
-		fmt.Fprintf(os.Stderr, "  chatmux chatgpt ask -c %s \"follow up\"\n", lastConvID)
+		fmt.Fprintf(os.Stderr, "  ask chatgpt -c %s \"follow up\"\n", lastConvID)
 	}
 
 	return nil

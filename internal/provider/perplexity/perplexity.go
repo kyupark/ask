@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/qm4/webai-cli/internal/httpclient"
-	"github.com/qm4/webai-cli/internal/provider"
-	"github.com/qm4/webai-cli/internal/sse"
+	"github.com/kyupark/ask/internal/httpclient"
+	"github.com/kyupark/ask/internal/provider"
+	"github.com/kyupark/ask/internal/sse"
 )
 
 const (

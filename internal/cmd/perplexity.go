@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qm4/webai-cli/internal/config"
-	"github.com/qm4/webai-cli/internal/provider"
-	"github.com/qm4/webai-cli/internal/provider/perplexity"
+	"github.com/kyupark/ask/internal/config"
+	"github.com/kyupark/ask/internal/provider"
+	"github.com/kyupark/ask/internal/provider/perplexity"
 )
 
 var (
@@ -21,22 +21,22 @@ var (
 )
 
 var perplexityCmd = &cobra.Command{
-	Use:   "perplexity",
+	Use:   "perplexity [question]",
 	Short: "Perplexity AI commands",
 	Long: `Interact with Perplexity AI using browser cookies.
 
 Subcommands:
-  ask            Ask a question (saves to history)
+  <question>      Ask a question (saves to history)
   ask-incognito  Ask a question (no history)
   list           List recent threads
-  models         Show available models, modes, and search focuses`,
-}
-
-var perplexityAskStandardCmd = &cobra.Command{
-	Use:   "ask [question]",
-	Short: "Ask Perplexity (saves to history)",
-	Args:  cobra.MinimumNArgs(1),
-	RunE:  func(cmd *cobra.Command, args []string) error { return runPerplexityAsk(cmd, args, false) },
+	models         Show available models, modes, and search focuses`,
+	Args: cobra.ArbitraryArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
+		return runPerplexityAsk(cmd, args, false)
+	},
 }
 
 var perplexityAskIncognitoCmd = &cobra.Command{
@@ -64,14 +64,14 @@ var perplexityModelsCmd = &cobra.Command{
 }
 
 func init() {
-	for _, cmd := range []*cobra.Command{perplexityAskStandardCmd, perplexityAskIncognitoCmd} {
-		cmd.Flags().StringVarP(&perplexityModel, "model", "m", "", "Model preference (e.g. 'pplx_reasoning', 'gpt52')")
-		cmd.Flags().StringVar(&perplexityMode, "mode", "", "Mode (auto, pro, reasoning, deep research)")
-		cmd.Flags().StringVar(&perplexityFocus, "focus", "", "Search focus (internet, scholar, social, edgar, writing)")
-	}
-	perplexityAskStandardCmd.Flags().BoolVarP(&perplexityResume, "resume", "r", false, "Resume last conversation")
-	perplexityAskStandardCmd.Flags().StringVar(&perplexityConversation, "conversation", "", "Continue a specific conversation by ID")
-	perplexityCmd.AddCommand(perplexityAskStandardCmd)
+	perplexityCmd.Flags().StringVarP(&perplexityModel, "model", "m", "", "Model preference (e.g. 'pplx_reasoning', 'gpt52')")
+	perplexityCmd.Flags().StringVar(&perplexityMode, "mode", "", "Mode (auto, pro, reasoning, deep research)")
+	perplexityCmd.Flags().StringVar(&perplexityFocus, "focus", "", "Search focus (internet, scholar, social, edgar, writing)")
+	perplexityCmd.Flags().BoolVarP(&perplexityResume, "resume", "r", false, "Resume last conversation")
+	perplexityCmd.Flags().StringVar(&perplexityConversation, "conversation", "", "Continue a specific conversation by ID")
+	perplexityAskIncognitoCmd.Flags().StringVarP(&perplexityModel, "model", "m", "", "Model preference (e.g. 'pplx_reasoning', 'gpt52')")
+	perplexityAskIncognitoCmd.Flags().StringVar(&perplexityMode, "mode", "", "Mode (auto, pro, reasoning, deep research)")
+	perplexityAskIncognitoCmd.Flags().StringVar(&perplexityFocus, "focus", "", "Search focus (internet, scholar, social, edgar, writing)")
 	perplexityCmd.AddCommand(perplexityAskIncognitoCmd)
 	perplexityCmd.AddCommand(perplexityListCmd)
 	perplexityCmd.AddCommand(perplexityModelsCmd)
@@ -184,7 +184,7 @@ func runPerplexityAsk(cmd *cobra.Command, args []string, temporary bool) error {
 
 	if lastConvID != "" && !temporary {
 		fmt.Fprintf(os.Stderr, "\nConversation: %s\n", lastConvID)
-		fmt.Fprintf(os.Stderr, "  chatmux perplexity ask -c %s \"follow up\"\n", lastConvID)
+		fmt.Fprintf(os.Stderr, "  ask perplexity -c %s \"follow up\"\n", lastConvID)
 	}
 
 	return nil

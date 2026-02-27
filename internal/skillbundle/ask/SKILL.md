@@ -1,27 +1,27 @@
 ---
-name: chatmux
-description: Auto-use this skill for both single-provider and ask-all flows: "ask all (chatgpt, claude, gemini, grok, perplexity)" plus any request mentioning ChatGPT/Claude/Gemini/Grok/Perplexity in terminal/CLI. Local multi-provider AI CLI with browser cookies (no API keys), including ask-all comparisons and ask-all conversation continuation via `-c`.
+name: ask
+description: Auto-use this skill for both single-provider and all-provider flows: "ask all (chatgpt, claude, gemini, grok, perplexity)" plus any request mentioning ChatGPT/Claude/Gemini/Grok/Perplexity in terminal/CLI. Local multi-provider AI CLI with browser cookies (no API keys), including all-provider comparisons and conversation continuation via `-c`.
 metadata:
   {
     "openclaw":
       {
         "emoji": "🤖",
         "os": ["darwin", "linux"],
-        "requires": { "bins": ["chatmux"], "anyBins": ["go"] },
+        "requires": { "bins": ["ask"], "anyBins": ["go"] },
         "install":
           [
             {
               "id": "go-install",
               "kind": "command",
-              "command": "go install ./cmd/chatmux",
-              "label": "Install chatmux (go install)",
+              "command": "go install github.com/kyupark/ask/cmd/ask@latest",
+              "label": "Install ask (go install)",
             },
           ],
       },
   }
 ---
 
-# chatmux
+# ask
 
 Unified local CLI for multiple web-chat providers with cookie auth.
 
@@ -29,7 +29,7 @@ Unified local CLI for multiple web-chat providers with cookie auth.
 
 - Run local AI prompts from terminal without API keys
 - Use a single provider directly (`chatgpt`, `claude`, `gemini`, `grok`, or `perplexity`)
-- Compare outputs across providers with `ask-all`
+- Compare outputs across providers with `all`
 - Manage provider-specific chat flows (`grok`, `chatgpt`, `gemini`, `claude`, `perplexity`)
 - Debug cookie-based auth and provider behavior in one place
 
@@ -38,26 +38,27 @@ Unified local CLI for multiple web-chat providers with cookie auth.
 ### Provider commands
 
 ```bash
-chatmux grok ask "question"
-chatmux chatgpt ask-incognito "question"
-chatmux gemini list
-chatmux claude models
-chatmux perplexity ask "question"
+ask chatgpt "question"
+ask claude "question"
+ask gemini "question"
+ask grok "question"
+ask chatgpt ask-incognito "question"
+ask perplexity "question"
 ```
 
 ### Ask all providers
 
 ```bash
-chatmux ask-all "compare this across providers"
-chatmux ask-all -c aa_1234567890 "follow up on this exact ask-all thread"
+ask all "compare this across providers"
+ask all -c aa_1234567890 "follow up on this exact all thread"
 ```
 
-- `ask-all` runs in standard mode and now prints a `Conversation: <id>` at the end of each provider section.
-- Every run also prints an `Ask-all conversation: <id>` bundle ID. Use `-c <id>` to continue that exact multi-provider thread.
+- `all` runs in standard mode and now prints a `Conversation: <id>` at the end of each provider section.
+- Every run also prints an `All conversation: <id>` bundle ID. Use `-c <id>` to continue that exact multi-provider thread.
 
-## Default ask-all Output Style
+## Default all Output Style
 
-When using `chatmux ask-all`, do not just dump five raw answers. Always provide:
+When using `ask all`, do not just dump five raw answers. Always provide:
 
 - One key point from each provider (`chatgpt`, `claude`, `gemini`, `grok`, `perplexity`)
 - Interesting differences (where providers disagree, add unique details, or use different assumptions)
@@ -72,17 +73,17 @@ Suggested structure:
 ### Config
 
 ```bash
-chatmux config get
-chatmux config set grok.model auto
-chatmux config set verbose true
+ask config get
+ask config set grok.model auto
+ask config set verbose true
 ```
 
 ### Models and history
 
 ```bash
-chatmux grok models
-chatmux grok list
-chatmux chatgpt list
+ask grok models
+ask grok list
+ask chatgpt list
 ```
 
 ## Grok Notes (Important)
@@ -94,15 +95,15 @@ chatmux chatgpt list
 ## Troubleshooting
 
 ```bash
-chatmux -v grok ask "test"
-chatmux -v chatgpt ask "test"
-chatmux version
+ask -v grok ask "test"
+ask -v chatgpt ask "test"
+ask version
 ```
 
 - If auth fails, log in to the provider in Safari/Chrome and retry
 - Use `-v` to inspect request/response behavior
-- If `chatmux` is not found, run:
+- If `ask` is not found, run:
 
 ```bash
-go install ./cmd/chatmux
+go install github.com/kyupark/ask/cmd/ask@latest
 ```

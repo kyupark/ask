@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qm4/webai-cli/internal/config"
-	"github.com/qm4/webai-cli/internal/provider"
-	claudepkg "github.com/qm4/webai-cli/internal/provider/claude"
+	"github.com/kyupark/ask/internal/config"
+	"github.com/kyupark/ask/internal/provider"
+	claudepkg "github.com/kyupark/ask/internal/provider/claude"
 )
 
 var (
@@ -20,20 +20,20 @@ var (
 )
 
 var claudeCmd = &cobra.Command{
-	Use:   "claude",
+	Use:   "claude [question]",
 	Short: "Claude.ai commands",
 	Long: `Interact with Claude.ai using browser cookies.
-  ask            Ask a question (saves to history)
+  <question>      Ask a question (saves to history)
   ask-incognito  Ask a question (no history)
   list           List recent conversations
-  models         Show available models and modes`,
-}
-
-var claudeAskStandardCmd = &cobra.Command{
-	Use:   "ask [question]",
-	Short: "Ask Claude (saves to history)",
-	Args:  cobra.MinimumNArgs(1),
-	RunE:  func(cmd *cobra.Command, args []string) error { return runClaudeAsk(cmd, args, false) },
+	models         Show available models and modes`,
+	Args: cobra.ArbitraryArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
+		return runClaudeAsk(cmd, args, false)
+	},
 }
 
 var claudeAskIncognitoCmd = &cobra.Command{
@@ -61,13 +61,12 @@ var claudeModelsCmd = &cobra.Command{
 }
 
 func init() {
-	for _, cmd := range []*cobra.Command{claudeAskStandardCmd, claudeAskIncognitoCmd} {
-		cmd.Flags().StringVarP(&claudeModel, "model", "m", "", "Model override (e.g. 'claude-opus-4-6', 'claude-sonnet-4-6')")
-		cmd.Flags().StringVar(&claudeThinkingEffort, "effort", "", "Thinking effort (low, medium, high, max)")
-	}
-	claudeAskStandardCmd.Flags().BoolVarP(&claudeResume, "resume", "r", false, "Resume last conversation")
-	claudeAskStandardCmd.Flags().StringVar(&claudeConversation, "conversation", "", "Continue a specific conversation by ID")
-	claudeCmd.AddCommand(claudeAskStandardCmd)
+	claudeCmd.Flags().StringVarP(&claudeModel, "model", "m", "", "Model override (e.g. 'claude-opus-4-6', 'claude-sonnet-4-6')")
+	claudeCmd.Flags().StringVar(&claudeThinkingEffort, "effort", "", "Thinking effort (low, medium, high, max)")
+	claudeCmd.Flags().BoolVarP(&claudeResume, "resume", "r", false, "Resume last conversation")
+	claudeCmd.Flags().StringVar(&claudeConversation, "conversation", "", "Continue a specific conversation by ID")
+	claudeAskIncognitoCmd.Flags().StringVarP(&claudeModel, "model", "m", "", "Model override (e.g. 'claude-opus-4-6', 'claude-sonnet-4-6')")
+	claudeAskIncognitoCmd.Flags().StringVar(&claudeThinkingEffort, "effort", "", "Thinking effort (low, medium, high, max)")
 	claudeCmd.AddCommand(claudeAskIncognitoCmd)
 	claudeCmd.AddCommand(claudeListCmd)
 	claudeCmd.AddCommand(claudeModelsCmd)
@@ -158,7 +157,7 @@ func runClaudeAsk(cmd *cobra.Command, args []string, temporary bool) error {
 
 	if lastConvID != "" && !temporary {
 		fmt.Fprintf(os.Stderr, "\nConversation: %s\n", lastConvID)
-		fmt.Fprintf(os.Stderr, "  chatmux claude ask -c %s \"follow up\"\n", lastConvID)
+		fmt.Fprintf(os.Stderr, "  ask claude -c %s \"follow up\"\n", lastConvID)
 	}
 
 	return nil

@@ -9,19 +9,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/qm4/webai-cli/internal/config"
+	"github.com/kyupark/ask/internal/config"
 	"github.com/spf13/cobra"
 
-	"github.com/qm4/webai-cli/internal/provider"
-	"github.com/qm4/webai-cli/internal/provider/chatgpt"
-	"github.com/qm4/webai-cli/internal/provider/claude"
-	"github.com/qm4/webai-cli/internal/provider/gemini"
-	"github.com/qm4/webai-cli/internal/provider/grok"
-	"github.com/qm4/webai-cli/internal/provider/perplexity"
+	"github.com/kyupark/ask/internal/provider"
+	"github.com/kyupark/ask/internal/provider/chatgpt"
+	"github.com/kyupark/ask/internal/provider/claude"
+	"github.com/kyupark/ask/internal/provider/gemini"
+	"github.com/kyupark/ask/internal/provider/grok"
+	"github.com/kyupark/ask/internal/provider/perplexity"
 )
 
 var askAllCmd = &cobra.Command{
-	Use:   "ask-all [question]",
+	Use:   "all [question]",
 	Short: "Ask all providers at once",
 	Long: `Ask all five AI providers simultaneously and display results as they arrive.
 Runs in standard mode by default.`,
@@ -33,8 +33,8 @@ var askAllResume bool
 var askAllConversationID string
 
 func init() {
-	askAllCmd.Flags().BoolVarP(&askAllResume, "resume-all", "r", false, "Continue the last ask-all conversation state for each provider")
-	askAllCmd.Flags().StringVarP(&askAllConversationID, "conversation", "c", "", "Continue a specific ask-all conversation ID")
+	askAllCmd.Flags().BoolVarP(&askAllResume, "resume-all", "r", false, "Continue the last all conversation state for each provider")
+	askAllCmd.Flags().StringVarP(&askAllConversationID, "conversation", "c", "", "Continue a specific all conversation ID")
 	rootCmd.AddCommand(askAllCmd)
 }
 
@@ -58,11 +58,11 @@ func runAskAll(cmd *cobra.Command, args []string) error {
 		model string
 	}
 	entries := []entry{
-		{newChatGPTProvider(), globalCfg.ChatGPT.Model},
-		{newClaudeProvider(), globalCfg.Claude.Model},
-		{newGeminiProvider(), globalCfg.Gemini.Model},
-		{newGrokProvider(), globalCfg.Grok.Model},
-		{newPerplexityProvider(), globalCfg.Perplexity.Model},
+		{newChatGPTProvider(), askAllChatGPTModel()},
+		{newClaudeProvider(), askAllClaudeModel()},
+		{newGeminiProvider(), askAllGeminiModel()},
+		{newGrokProvider(), askAllGrokModel()},
+		{newPerplexityProvider(), askAllPerplexityModel()},
 	}
 	state := config.LoadState()
 
@@ -70,7 +70,7 @@ func runAskAll(cmd *cobra.Command, args []string) error {
 	if askAllConversationID != "" {
 		bundle := state.GetAskAllConversation(askAllConversationID)
 		if bundle == nil || len(bundle.Providers) == 0 {
-			return fmt.Errorf("ask-all conversation not found: %s", askAllConversationID)
+			return fmt.Errorf("all conversation not found: %s", askAllConversationID)
 		}
 		for k, v := range bundle.Providers {
 			if v != nil {
@@ -109,7 +109,7 @@ func runAskAll(cmd *cobra.Command, args []string) error {
 
 	// Fan out: ask all providers in parallel, buffer responses.
 	results := make(chan providerResult, len(entries))
-	ctx, cancel := context.WithTimeout(cmd.Context(), timeout+timeout/2)
+	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 	defer cancel()
 	for _, e := range entries {
 		go func(p provider.Provider, model string) {
@@ -215,15 +215,45 @@ func runAskAll(cmd *cobra.Command, args []string) error {
 		askAllID := fmt.Sprintf("aa_%d", time.Now().UnixNano())
 		state.SetAskAllConversation(askAllID, bundleProviders)
 		_ = config.SaveState(state)
-		fmt.Printf("\nAsk-all conversation: %s\n", askAllID)
-		fmt.Printf("  chatmux ask-all -c %s \"follow up\"\n", askAllID)
-		fmt.Println("  chatmux ask-all -c <id> \"follow up\"")
+		fmt.Printf("\nAll conversation: %s\n", askAllID)
+		fmt.Printf("  ask all -c %s \"follow up\"\n", askAllID)
+		fmt.Println("  ask all -c <id> \"follow up\"")
 	}
 
 	return nil
 }
 
-// Provider factory functions for ask-all.
+func askAllChatGPTModel() string {
+	if model := strings.TrimSpace(globalCfg.ChatGPT.Model); model != "" {
+		return model
+	}
+	return "gpt-5.2-thinking"
+}
+
+func askAllClaudeModel() string {
+	if model := strings.TrimSpace(globalCfg.Claude.Model); model != "" {
+		return model
+	}
+	return "claude-opus-4-6"
+}
+
+func askAllGeminiModel() string {
+	if model := strings.TrimSpace(globalCfg.Gemini.Model); model != "" {
+		return model
+	}
+	return "gemini-3-pro"
+}
+
+func askAllGrokModel() string {
+	return grok.ResolveModel(strings.TrimSpace(globalCfg.Grok.Model))
+}
+
+func askAllPerplexityModel() string {
+	if model := strings.TrimSpace(globalCfg.Perplexity.Model); model != "" {
+		return model
+	}
+	return "pplx_reasoning"
+}
 
 func newPerplexityProvider() provider.Provider {
 	p := perplexity.New(
