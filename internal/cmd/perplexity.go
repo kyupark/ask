@@ -29,6 +29,7 @@ Subcommands:
   <question>      Ask a question (saves to history)
   ask-incognito  Ask a question (no history)
   list           List recent threads
+	delete         Delete a thread by ID
 	models         Show available models, modes, and search focuses`,
 	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -53,6 +54,13 @@ var perplexityListCmd = &cobra.Command{
 	RunE:  runPerplexityList,
 }
 
+var perplexityDeleteCmd = &cobra.Command{
+	Use:   "delete <conversation-id>",
+	Short: "Delete a Perplexity thread",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runPerplexityDelete,
+}
+
 var perplexityModelsCmd = &cobra.Command{
 	Use:   "models",
 	Short: "Show available Perplexity models and modes",
@@ -74,6 +82,7 @@ func init() {
 	perplexityAskIncognitoCmd.Flags().StringVar(&perplexityFocus, "focus", "", "Search focus (internet, scholar, social, edgar, writing)")
 	perplexityCmd.AddCommand(perplexityAskIncognitoCmd)
 	perplexityCmd.AddCommand(perplexityListCmd)
+	perplexityCmd.AddCommand(perplexityDeleteCmd)
 	perplexityCmd.AddCommand(perplexityModelsCmd)
 	rootCmd.AddCommand(perplexityCmd)
 }
@@ -203,4 +212,19 @@ func runPerplexityList(cmd *cobra.Command, args []string) error {
 	})
 
 	return runList(cmd.Context(), p, 20)
+}
+
+func runPerplexityDelete(cmd *cobra.Command, args []string) error {
+	p := perplexity.New(
+		globalCfg.Perplexity.BaseURL,
+		globalCfg.UserAgent,
+		providerTimeout(),
+	)
+
+	p.SetCookies(map[string]string{
+		"cf_clearance":                     globalCfg.Perplexity.CfClearance,
+		"__Secure-next-auth.session-token": globalCfg.Perplexity.SessionCookie,
+	})
+
+	return runDelete(cmd.Context(), p, args[0])
 }

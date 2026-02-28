@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/kyupark/ask/internal/httpclient"
@@ -17,8 +19,10 @@ import (
 )
 
 const (
-	defaultBaseURL = "https://www.perplexity.ai"
-	askEndpoint    = "/rest/sse/perplexity_ask"
+	defaultBaseURL   = "https://www.perplexity.ai"
+	askEndpoint      = "/rest/sse/perplexity_ask"
+	threadPath       = "/rest/thread"
+	deleteThreadPath = "/rest/thread/delete_thread_by_entry_uuid"
 
 	cookieCfClearance  = "cf_clearance"
 	cookieSessionToken = "__Secure-next-auth.session-token"
@@ -260,10 +264,21 @@ type listThreadsRequest struct {
 }
 
 type threadItem struct {
-	ContextUUID       string `json:"context_uuid"`
-	Title             string `json:"title"`
-	LastQueryDatetime string `json:"last_query_datetime"`
-	Slug              string `json:"slug"`
+	ContextUUID         string `json:"context_uuid"`
+	FrontendContextUUID string `json:"frontend_context_uuid"`
+	Title               string `json:"title"`
+	LastQueryDatetime   string `json:"last_query_datetime"`
+	Slug                string `json:"slug"`
+	ReadWriteToken      string `json:"read_write_token"`
+}
+
+type threadDetails struct {
+	Entries []threadEntry `json:"entries"`
+}
+
+type threadEntry struct {
+	BackendUUID    string `json:"backend_uuid"`
+	ReadWriteToken string `json:"read_write_token"`
 }
 
 // ListConversations fetches recent threads from the Perplexity web API.
@@ -348,6 +363,210 @@ func (p *Provider) ListConversations(ctx context.Context, opts provider.ListOpti
 
 	logf("[perplexity] fetched %d threads", len(result))
 	return result, nil
+}
+
+func (p *Provider) DeleteConversation(ctx context.Context, conversationID string, opts provider.DeleteOptions) error {
+	if p.sessionCookie == "" {
+		return fmt.Errorf("no session cookie — log in to perplexity.ai in your browser")
+	}
+	conversationID = strings.TrimSpace(conversationID)
+	if conversationID == "" {
+		return fmt.Errorf("conversation ID is required")
+	}
+
+	logf := opts.LogFunc
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
+
+	thread, err := p.findThreadByContextID(ctx, conversationID)
+	if err != nil {
+		return err
+	}
+
+	entryUUID := ""
+	readWriteToken := strings.TrimSpace(thread.ReadWriteToken)
+	if strings.TrimSpace(thread.Slug) != "" {
+		details, err := p.fetchThreadDetails(ctx, thread.Slug)
+		if err != nil {
+			logf("[perplexity] unable to fetch thread details for slug=%s: %v", thread.Slug, err)
+		} else {
+			for _, entry := range details.Entries {
+				if strings.TrimSpace(entryUUID) == "" && strings.TrimSpace(entry.BackendUUID) != "" {
+					entryUUID = strings.TrimSpace(entry.BackendUUID)
+				}
+				if strings.TrimSpace(readWriteToken) == "" && strings.TrimSpace(entry.ReadWriteToken) != "" {
+					readWriteToken = strings.TrimSpace(entry.ReadWriteToken)
+				}
+				if entryUUID != "" && readWriteToken != "" {
+					break
+				}
+			}
+		}
+	}
+
+	if entryUUID == "" {
+		return fmt.Errorf("could not resolve entry UUID for conversation %s", conversationID)
+	}
+	if readWriteToken == "" {
+		return fmt.Errorf("could not resolve read/write token for conversation %s", conversationID)
+	}
+
+	deletePayload, err := json.Marshal(map[string]string{
+		"entry_uuid":       entryUUID,
+		"read_write_token": readWriteToken,
+	})
+	if err != nil {
+		return fmt.Errorf("marshalling delete payload: %w", err)
+	}
+
+	u := p.baseURL + deleteThreadPath + "?version=2.18&source=default"
+	logf("[perplexity] DELETE %s", u)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u, bytes.NewReader(deletePayload))
+	if err != nil {
+		return fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("X-App-Apiclient", "default")
+	req.Header.Set("X-App-Apiversion", "2.18")
+	req.Header.Set("User-Agent", p.userAgent)
+	req.Header.Set("Origin", p.baseURL)
+	req.Header.Set("Referer", p.baseURL+"/")
+	if p.cfClearance != "" {
+		req.AddCookie(&http.Cookie{Name: cookieCfClearance, Value: p.cfClearance})
+	}
+	req.AddCookie(&http.Cookie{Name: cookieSessionToken, Value: p.sessionCookie})
+
+	client := httpclient.New(p.timeout)
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	logf("[perplexity] conversation deleted")
+	return nil
+}
+
+func (p *Provider) findThreadByContextID(ctx context.Context, contextID string) (*threadItem, error) {
+	contextID = strings.TrimSpace(contextID)
+	if contextID == "" {
+		return nil, fmt.Errorf("conversation ID is required")
+	}
+
+	client := httpclient.New(p.timeout)
+	for offset := 0; offset < 1000; offset += 50 {
+		reqBody := listThreadsRequest{Limit: 50, Ascending: false, Offset: offset, SearchTerm: ""}
+		payload, err := json.Marshal(reqBody)
+		if err != nil {
+			return nil, fmt.Errorf("marshalling request: %w", err)
+		}
+
+		u := p.baseURL + listThreadsPath + "?version=2.18&source=default"
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(payload))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "*/*")
+		req.Header.Set("User-Agent", p.userAgent)
+		req.Header.Set("X-App-Apiclient", "default")
+		req.Header.Set("X-App-Apiversion", "2.18")
+		req.Header.Set("Origin", p.baseURL)
+		req.Header.Set("Referer", p.baseURL+"/")
+		if p.cfClearance != "" {
+			req.AddCookie(&http.Cookie{Name: cookieCfClearance, Value: p.cfClearance})
+		}
+		req.AddCookie(&http.Cookie{Name: cookieSessionToken, Value: p.sessionCookie})
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("request failed: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			resp.Body.Close()
+			return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+		}
+
+		var threads []threadItem
+		if err := json.NewDecoder(resp.Body).Decode(&threads); err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("decoding response: %w", err)
+		}
+		resp.Body.Close()
+
+		for _, t := range threads {
+			if strings.TrimSpace(t.ContextUUID) == contextID || strings.TrimSpace(t.FrontendContextUUID) == contextID {
+				item := t
+				return &item, nil
+			}
+		}
+
+		if len(threads) < 50 {
+			break
+		}
+	}
+
+	return nil, fmt.Errorf("conversation %s not found", contextID)
+}
+
+func (p *Provider) fetchThreadDetails(ctx context.Context, slug string) (*threadDetails, error) {
+	slug = strings.TrimSpace(slug)
+	if slug == "" {
+		return nil, fmt.Errorf("thread slug is required")
+	}
+
+	params := url.Values{}
+	params.Set("with_parent_info", "true")
+	params.Set("with_schematized_response", "true")
+	params.Set("version", "2.18")
+	params.Set("source", "default")
+	params.Set("limit", "10")
+	params.Set("offset", "0")
+	params.Set("from_first", "true")
+	u := fmt.Sprintf("%s%s/%s?%s", p.baseURL, threadPath, slug, params.Encode())
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("X-App-Apiclient", "default")
+	req.Header.Set("X-App-Apiversion", "2.18")
+	req.Header.Set("User-Agent", p.userAgent)
+	req.Header.Set("Origin", p.baseURL)
+	req.Header.Set("Referer", p.baseURL+"/")
+	if p.cfClearance != "" {
+		req.AddCookie(&http.Cookie{Name: cookieCfClearance, Value: p.cfClearance})
+	}
+	req.AddCookie(&http.Cookie{Name: cookieSessionToken, Value: p.sessionCookie})
+
+	client := httpclient.New(p.timeout)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	var details threadDetails
+	if err := json.NewDecoder(resp.Body).Decode(&details); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+	return &details, nil
 }
 
 // --- Model catalog ---

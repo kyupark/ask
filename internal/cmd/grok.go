@@ -27,6 +27,7 @@ var grokCmd = &cobra.Command{
   <question>      Ask a question (saves to history)
   ask-incognito  Ask a question (no local resume state)
   list           List recent conversations
+  delete         Delete a conversation by ID
   models         Show available models
 Model aliases: auto, fast, expert, thinking, 4.20, 4, 3, 2, mini`,
 	Args: cobra.ArbitraryArgs,
@@ -52,6 +53,13 @@ var grokListCmd = &cobra.Command{
 	RunE:  runGrokList,
 }
 
+var grokDeleteCmd = &cobra.Command{
+	Use:   "delete <conversation-id|all>",
+	Short: "Delete Grok conversations (use 'all' for bulk delete)",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runGrokDelete,
+}
+
 var grokModelsCmd = &cobra.Command{
 	Use:   "models",
 	Short: "Show available Grok models and modes",
@@ -73,6 +81,7 @@ func init() {
 	grokAskIncognitoCmd.Flags().BoolVar(&grokReasoning, "reasoning", false, "Enable Reasoning mode")
 	grokCmd.AddCommand(grokAskIncognitoCmd)
 	grokCmd.AddCommand(grokListCmd)
+	grokCmd.AddCommand(grokDeleteCmd)
 	grokCmd.AddCommand(grokModelsCmd)
 	rootCmd.AddCommand(grokCmd)
 }
@@ -188,4 +197,18 @@ func runGrokList(cmd *cobra.Command, args []string) error {
 	})
 
 	return runList(cmd.Context(), p, 20)
+}
+
+func runGrokDelete(cmd *cobra.Command, args []string) error {
+	p := grokpkg.New(
+		globalCfg.UserAgent,
+		providerTimeout(),
+	)
+
+	p.SetCookies(map[string]string{
+		"auth_token": globalCfg.Grok.AuthToken,
+		"ct0":        globalCfg.Grok.CT0,
+	})
+
+	return runDelete(cmd.Context(), p, args[0])
 }

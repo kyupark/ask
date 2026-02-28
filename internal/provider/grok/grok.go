@@ -34,6 +34,7 @@ const (
 var fallbackQueryIDs = map[string][]string{
 	"CreateGrokConversation":        {"vvC5uy7pWWHXS2aDi1FZeA"},
 	"GrokConversationItemsByRestId": {"6QmFgXuRQyOnW2iJ7nIk7g"},
+	"ClearGrokConversations":        {"83Gg0lfI-47Z3-ZOxyUjiQ"},
 }
 
 // --- model aliases ---
@@ -713,6 +714,57 @@ func (p *Provider) ListConversations(ctx context.Context, opts provider.ListOpti
 	}
 
 	return nil, fmt.Errorf("all GrokHistory query IDs exhausted")
+}
+
+func (p *Provider) DeleteConversation(ctx context.Context, conversationID string, opts provider.DeleteOptions) error {
+	if p.authToken == "" || p.ct0 == "" {
+		return fmt.Errorf("missing X.com cookies (auth_token, ct0) — log into x.com in your browser")
+	}
+
+	conversationID = strings.TrimSpace(conversationID)
+	if conversationID == "" {
+		return fmt.Errorf("conversation ID is required")
+	}
+
+	logf := opts.LogFunc
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
+
+	if !strings.EqualFold(conversationID, "all") {
+		return fmt.Errorf("grok currently supports only bulk deletion; use 'ask grok delete all'")
+	}
+
+	queryIDs := fallbackQueryIDs["ClearGrokConversations"]
+	if len(queryIDs) == 0 {
+		return fmt.Errorf("no ClearGrokConversations query ID available")
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"variables": map[string]any{},
+		"queryId":   queryIDs[0],
+	})
+	if err != nil {
+		return fmt.Errorf("marshalling request: %w", err)
+	}
+
+	u := fmt.Sprintf("%s/%s/ClearGrokConversations", twitterAPIBase, queryIDs[0])
+	logf("[grok] POST %s", u)
+
+	headers := p.grokWriteHeaders(http.MethodPost, u)
+	resp, err := p.doRequest(ctx, http.MethodPost, u, bytes.NewReader(payload), headers)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	logf("[grok] all conversations deleted")
+	return nil
 }
 
 // --- Model catalog ---
