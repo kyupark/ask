@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const stateFile = "state.json"
@@ -19,6 +20,8 @@ type ConversationState struct {
 
 type AskAllConversationState struct {
 	Providers map[string]*ConversationState `json:"providers"`
+	Question  string                        `json:"question,omitempty"`
+	CreatedAt time.Time                     `json:"created_at,omitempty"`
 }
 
 // State holds runtime state persisted across CLI invocations.
@@ -73,14 +76,14 @@ func (s *State) SetConversation(provider string, cs *ConversationState) {
 	s.LastConversation[provider] = cs
 }
 
-func (s *State) SetAskAllConversation(id string, providers map[string]*ConversationState) {
+func (s *State) SetAskAllConversation(id, question string, providers map[string]*ConversationState) {
 	if id == "" {
 		return
 	}
 	if s.AskAll == nil {
 		s.AskAll = make(map[string]*AskAllConversationState)
 	}
-	s.AskAll[id] = &AskAllConversationState{Providers: providers}
+	s.AskAll[id] = &AskAllConversationState{Providers: providers, Question: question, CreatedAt: time.Now()}
 	s.LastAskAllID = id
 }
 

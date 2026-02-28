@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,17 +26,30 @@ var askAllCmd = &cobra.Command{
 	Use:   "all [question]",
 	Short: "Ask all providers at once",
 	Long: `Ask all five AI providers simultaneously and display results as they arrive.
-Runs in standard mode by default.`,
+Runs in standard mode by default.
+
+Subcommands:
+  list           List recent ask-all conversations from local state`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runAskAll,
 }
 
 var askAllResume bool
 var askAllConversationID string
+var askAllListLimit int
+
+var askAllListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List recent ask-all conversations from local state",
+	Args:  cobra.NoArgs,
+	RunE:  runAskAllList,
+}
 
 func init() {
 	askAllCmd.Flags().BoolVarP(&askAllResume, "resume-all", "r", false, "Continue the last all conversation state for each provider")
 	askAllCmd.Flags().StringVarP(&askAllConversationID, "conversation", "c", "", "Continue a specific all conversation ID")
+	askAllListCmd.Flags().IntVarP(&askAllListLimit, "limit", "n", 20, "Maximum recent ask-all conversations to show")
+	askAllCmd.AddCommand(askAllListCmd)
 	rootCmd.AddCommand(askAllCmd)
 }
 
@@ -49,21 +64,15 @@ type providerResult struct {
 	responseID      string
 }
 
+type askAllEntry struct {
+	p     provider.Provider
+	model string
+}
+
 func runAskAll(cmd *cobra.Command, args []string) error {
 	query := strings.Join(args, " ")
 	timeout := providerTimeout()
-
-	type entry struct {
-		p     provider.Provider
-		model string
-	}
-	entries := []entry{
-		{newChatGPTProvider(), askAllChatGPTModel()},
-		{newClaudeProvider(), askAllClaudeModel()},
-		{newGeminiProvider(), askAllGeminiModel()},
-		{newGrokProvider(), askAllGrokModel()},
-		{newPerplexityProvider(), askAllPerplexityModel()},
-	}
+	entries := askAllEntries()
 	state := config.LoadState()
 
 	resumeByProvider := make(map[string]*config.ConversationState)
@@ -213,7 +222,7 @@ func runAskAll(cmd *cobra.Command, args []string) error {
 
 	if updatedState {
 		askAllID := fmt.Sprintf("aa_%d", time.Now().UnixNano())
-		state.SetAskAllConversation(askAllID, bundleProviders)
+		state.SetAskAllConversation(askAllID, query, bundleProviders)
 		_ = config.SaveState(state)
 		fmt.Printf("\nAll conversation: %s\n", askAllID)
 		fmt.Printf("  ask all -c %s \"follow up\"\n", askAllID)
@@ -223,11 +232,110 @@ func runAskAll(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func runAskAllList(cmd *cobra.Command, args []string) error {
+	state := config.LoadState()
+	if len(state.AskAll) == 0 {
+		fmt.Println("No ask-all conversations found.")
+		return nil
+	}
+
+	limit := askAllListLimit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	type askAllRecord struct {
+		id      string
+		bundle  *config.AskAllConversationState
+		created time.Time
+	}
+
+	records := make([]askAllRecord, 0, len(state.AskAll))
+	for id, bundle := range state.AskAll {
+		records = append(records, askAllRecord{
+			id:      id,
+			bundle:  bundle,
+			created: askAllCreatedAt(id, bundle),
+		})
+	}
+
+	sort.Slice(records, func(i, j int) bool {
+		if !records[i].created.Equal(records[j].created) {
+			return records[i].created.After(records[j].created)
+		}
+		return records[i].id > records[j].id
+	})
+
+	if len(records) > limit {
+		records = records[:limit]
+	}
+
+	fmt.Printf("Found %d ask-all conversation(s):\n\n", len(records))
+	for _, r := range records {
+		question := ""
+		if r.bundle != nil {
+			question = strings.TrimSpace(r.bundle.Question)
+		}
+		if question == "" {
+			question = "(question unavailable — created before local question tracking)"
+		}
+
+		fmt.Printf("  %s\n", question)
+		fmt.Printf("    ID: %s\n", r.id)
+		if !r.created.IsZero() {
+			fmt.Printf("    %s\n", formatTime(r.created))
+		}
+		if providers := askAllProviderNames(r.bundle); len(providers) > 0 {
+			fmt.Printf("    Providers: %s\n", strings.Join(providers, ", "))
+		}
+		fmt.Printf("    Resume: ask all -c %s \"follow up\"\n", r.id)
+		fmt.Println()
+	}
+
+	return nil
+}
+
+func askAllCreatedAt(id string, bundle *config.AskAllConversationState) time.Time {
+	if bundle != nil && !bundle.CreatedAt.IsZero() {
+		return bundle.CreatedAt
+	}
+	if !strings.HasPrefix(id, "aa_") {
+		return time.Time{}
+	}
+	unixNano, err := strconv.ParseInt(strings.TrimPrefix(id, "aa_"), 10, 64)
+	if err != nil {
+		return time.Time{}
+	}
+	return time.Unix(0, unixNano)
+}
+
+func askAllProviderNames(bundle *config.AskAllConversationState) []string {
+	if bundle == nil || len(bundle.Providers) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(bundle.Providers))
+	for name := range bundle.Providers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func askAllEntries() []askAllEntry {
+	return []askAllEntry{
+		{newChatGPTProvider(), askAllChatGPTModel()},
+		{newClaudeProvider(), askAllClaudeModel()},
+		{newGeminiProvider(), askAllGeminiModel()},
+		{newGrokProvider(), askAllGrokModel()},
+		{newPerplexityProvider(), askAllPerplexityModel()},
+	}
+}
+
 func askAllChatGPTModel() string {
-	if model := strings.TrimSpace(globalCfg.ChatGPT.Model); model != "" {
+	if model := strings.TrimSpace(globalCfg.ChatGPT.Model); model != "" && !strings.EqualFold(model, "auto") {
 		return model
 	}
-	return "gpt-5-2"
+	return "gpt-5-2-thinking"
 }
 
 func askAllClaudeModel() string {
